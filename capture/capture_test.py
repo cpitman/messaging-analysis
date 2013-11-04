@@ -11,13 +11,29 @@ queue_name = "TEST_QUEUE"
 queue_type = CMQC.MQQT_LOCAL
 queue_max_depth = "300"
 
+test_message = "TEST MESSAGE"
+
 class TestConnectionHandler(unittest.TestCase):
 
 	def setUp(self):
 		self.connection_handler = capture.ConnectionHandler(queue_manager, channel, host, port)
 		self.connection_handler.connect()
 
-	def test_create_and_delete_queue(self):
+	def test_get_queue_depth(self):
+		self.connection_handler.create_queue(queue_name, queue_type, queue_max_depth)
+		self.connection_handler.put_message_in_queue(queue_name, test_message)
+		queue_depth = self.connection_handler.get_queue_depth(queue_name)
+		self.assertEqual(1, queue_depth)
+		self.connection_handler.delete_queue(queue_name)
+		
+	def test_put_and_get_message(self):
+		self.connection_handler.create_queue(queue_name, queue_type, queue_max_depth)
+		self.connection_handler.put_message_in_queue(queue_name, test_message)
+		message = self.connection_handler.get_message_in_queue(queue_name)
+		self.assertEqual(message, test_message)
+		self.connection_handler.delete_queue(queue_name)
+
+	def test_simple_create_and_delete_queue(self):
 		self.connection_handler.create_queue(queue_name, queue_type, queue_max_depth)
 
 		found = False
