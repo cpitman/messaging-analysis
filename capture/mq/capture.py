@@ -12,6 +12,32 @@ class ConnectionHandler:
 		self.cd.ChannelType = CMQC.MQCHT_CLNTCONN
 		self.cd.TransportType = CMQC.MQXPT_TCP
 
+	def browse_messages_in_queue(self, queue_name):
+		queue = pymqi.Queue(self.connection, queue_name, CMQC.MQOO_BROWSE)
+
+		message_descriptors = pymqi.md()
+		get_message_options = pymqi.gmo()
+		get_message_options.Options = CMQC.MQGMO_BROWSE_NEXT
+
+		messages = []
+		while True:
+			try:
+				message_body = queue.get(None, message_descriptors, get_message_options)
+				messages.append(Message(message_descriptors, message_body))
+
+				#These are required in order to move the cursor to the next entry.
+				message_descriptors['MsgId'] = ''
+				message_descriptors['CorrelId'] = ''
+			except pymqi.MQMIError, e:
+				if e.comp == CMQC.MQCC_FAILED and e.reason == CMQC.MQRC_NO_MSG_AVAILABLE:
+					break
+				else:
+					raise
+
+		queue.close()
+
+		return messages
+		
 	def connect(self):
 		self.connection = pymqi.PCFExecute(name = None)
 		self.connection.connect_with_options(self.__queue_manager, cd=self.cd, opts=CMQC.MQCNO_HANDLE_SHARE_BLOCK)
@@ -24,7 +50,7 @@ class ConnectionHandler:
 			if e.reason == CMQCFC.MQRCCF_OBJECT_ALREADY_EXISTS:
 				print "Warning: Queue '%s' already exists on queue manager '%s'!" % (queue_name, self.__queue_manager)
 			else:
-				raise(e)
+				raise
 
 	def delete_queue(self, queue_name):
 		args = {CMQC.MQCA_Q_NAME: queue_name}
@@ -43,6 +69,8 @@ class ConnectionHandler:
 			except pymqi.MQMIError, e:
 				if e.comp == CMQC.MQCC_FAILED and e.reason == CMQC.MQRC_NO_MSG_AVAILABLE:
 					break
+				else:
+					raise
 		
 		queue.close()
 	
@@ -52,8 +80,8 @@ class ConnectionHandler:
 		queue.close()
 		return message
 
-	def get_queue_depth(self, queue_name):
-		args = {CMQC.MQCA_Q_NAME: queue_name, CMQCFC.MQIACF_Q_STATUS_TYPE: CMQCFC.MQIACF_Q_STATUS, CMQCFC.MQIACF_Q_STATUS_ATTRS: CMQC.MQIA_CURRENT_Q_DEPTH}
+	def get_queue_statistics(self, queue_name):
+		args = {CMQC.MQCA_Q_NAME: queue_name, CMQCFC.MQIACF_Q_STATUS_TYPE: CMQCFC.MQIACF_Q_STATUS}
 
 		try:
 			response = self.connection.MQCMD_INQUIRE_Q_STATUS(args)
@@ -63,7 +91,7 @@ class ConnectionHandler:
 			else:
 				raise
 
-		return response[0][CMQC.MQIA_CURRENT_Q_DEPTH]
+		return response[0]
 
 	def get_queues(self, inquiry):
 		args = {CMQC.MQCA_Q_NAME: inquiry}
@@ -73,5 +101,11 @@ class ConnectionHandler:
 		queue = pymqi.Queue(self.connection, queue_name)
 		queue.put(message)
 		queue.close()
+
+class Message:
+		
+	def __init__(self, header, body):
+		self.header = header
+		self.body = body
 
 
