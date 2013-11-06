@@ -3,6 +3,10 @@ import numpy
 import os
 class Digester:
 
+	def process(self, snapshot_dir):
+		snapshot_list = self.read_snapshot_files(snapshot_dir)
+		return self.process_aggregate_stats(self.generate_aggregate_stats(snapshot_list))
+
 	def read_snapshot_files(self, snapshot_dir):
 		all_snapshots = []
 		snapshots = os.listdir(snapshot_dir)
@@ -58,6 +62,7 @@ class Digester:
 		all_msg_sizes = [item for sublist in all_msg_sizes for item in sublist]
 
 		processed_stats["overallStats"]["avgDepth"] = numpy.average(numpy.array([ snapshot["aggregateStats"]["totalMsgDepth"] for snapshot in snapshots ]))
+		processed_stats["overallStats"]["allDepths"] = [ snapshot["aggregateStats"]["totalMsgDepth"] for snapshot in snapshots ]
 		processed_stats["overallStats"]["avgMsgInRate"] = numpy.average(numpy.array([ stat["msgInRate"] for stat in processed_stats["intervalStats"] ]))
 		processed_stats["overallStats"]["avgMsgOutRate"] = numpy.average(numpy.array([ stat["msgOutRate"] for stat in processed_stats["intervalStats"] ]))
 		processed_stats["overallStats"]["maxMsgSize"] = numpy.max(all_msg_sizes)
@@ -65,5 +70,5 @@ class Digester:
 		processed_stats["overallStats"]["stdDevMsgSize"] = numpy.std(all_msg_sizes)
 		processed_stats["overallStats"]["allMsgSizes"] = all_msg_sizes
 
-		print processed_stats
+		#print processed_stats
 		return processed_stats

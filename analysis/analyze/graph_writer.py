@@ -6,46 +6,37 @@ import matplotlib.pyplot as plt
 
 class GraphWriter:
 
+	def process(self, stats, output_dir):
+		self.create_graphs(stats, output_dir)
+		return self.write_pdf(output_dir)
+		
+
 	def write_pdf(self, file_loc):
-		c = canvas.Canvas(os.path.join(file_loc,'report.pdf'))
+		pdf_loc = os.path.join(file_loc,'report.pdf')
+		c = canvas.Canvas(pdf_loc)
 		images = os.listdir(file_loc)
 		for image in images:
 			c.drawImage(os.path.join(file_loc,image), 0, 0, 20*cm, 15*cm)
 			c.showPage()
 
 		c.save()
+		return pdf_loc
 
 
-	def create_graphs(self, stats, test=False):
-		tmpdir = tempfile.mkdtemp()
+	def create_graphs(self, stats, output_dir, test=False):
 		
-		self.create_msg_depth(stats, tmpdir)
-		self.create_msg_in_rate(stats, tmpdir)
-		self.create_msg_out_rate(stats, tmpdir)
+		self.create_msg_in_rate(stats, output_dir)
+		self.create_msg_out_rate(stats, output_dir)
+		self.create_msg_size_histogram(stats, output_dir)
+		self.create_msg_depth_histogram(stats, output_dir)
 
 		if(test):
 			plt.show()
 
-		return tmpdir
-
-	def create_msg_depth(self, stats, tmpdir):
-		
-		bar_width = (stats["captureStats"][1]["time"] - stats["captureStats"][0]["time"]) / 10
-		x,y = [], []
-		for i in range(0,len(stats["captureStats"])):
-			x.append(stats["captureStats"][i]["time"])
-			y.append(stats["captureStats"][i]["msgDepth"])
-			
-		plt.bar(x,y,width=bar_width)
-		plt.xlabel('Time')
-		plt.ylabel('Msg Depth')
-		plt.title('Msg Depth Over Time')
-		plt.grid(True)
-		plt.draw()
-		plt.savefig(os.path.join(tmpdir,"msg_depth.jpeg"))
+		return output_dir
 		
 	
-	def create_msg_in_rate(self, stats, tmpdir):
+	def create_msg_in_rate(self, stats, output_dir):
 		
 		bar_width = (stats["intervalStats"][0]["startTime"] - stats["intervalStats"][0]["endTime"]) / 10
 		x,y = [], []
@@ -60,10 +51,10 @@ class GraphWriter:
 		plt.title('Msg In Rate Over Time')
 		plt.grid(True)
 		plt.draw()
-		plt.savefig(os.path.join(tmpdir,"msg_in_rate.jpeg"))
+		plt.savefig(os.path.join(output_dir,"msg_in_rate.jpeg"))
 
 
-	def create_msg_out_rate(self, stats, tmpdir):
+	def create_msg_out_rate(self, stats, output_dir):
 		
 		bar_width = (stats["intervalStats"][0]["startTime"] - stats["intervalStats"][0]["endTime"]) / 10
 		x,y = [], []
@@ -78,9 +69,9 @@ class GraphWriter:
 		plt.title('Msg Out Rate Over Time')
 		plt.grid(True)
 		plt.draw()
-		plt.savefig(os.path.join(tmpdir,"msg_out_rate.jpeg"))
+		plt.savefig(os.path.join(output_dir,"msg_out_rate.jpeg"))
 
-	def create_msg_size_histogram(self, stats, tmpdir):
+	def create_msg_size_histogram(self, stats, output_dir):
 		
 		plt.figure()
 		plt.xlabel('Msg Size')
@@ -89,15 +80,15 @@ class GraphWriter:
 		plt.hist(stats["overallStats"]["allMsgSizes"])
 		plt.grid(True)
 		plt.draw()
-		plt.savefig(os.path.join(tmpdir,"msg_size_hist.jpeg"))
+		plt.savefig(os.path.join(output_dir,"msg_size_hist.jpeg"))
 
-	def create_msg_depth_histogram(self, stats, tmpdir):
+	def create_msg_depth_histogram(self, stats, output_dir):
 
 		plt.figure()
 		plt.xlabel('Msg Depth')
 		plt.ylabel('Occurence')
 		plt.title('Msg Depth Histogram')
-		plt.hist([ stat["msgDepth"] for stat in stats["captureStats"] ])
+		plt.hist(stats['overallStats']['allDepths'])
 		plt.grid(True)
 		plt.draw()
-		plt.savefig(os.path.join(tmpdir,"msg_depth_hist.jpeg"))
+		plt.savefig(os.path.join(output_dir,"msg_depth_hist.jpeg"))
