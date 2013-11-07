@@ -17,7 +17,7 @@ TEST_MESSAGE = "TEST MESSAGE"
 TEST_MESSAGE2 = "TEST MESSAGE 2"
 TEST_MESSAGE3 = "TEST MESSAGE 3"
 
-TEST_FILE = "test_file.json"
+TEST_FILE = "/tmp"
 
 class TestCaptureStatistics(unittest.TestCase):
 
@@ -33,7 +33,7 @@ class TestCaptureStatistics(unittest.TestCase):
 
 	def test_capture_statistics(self):
 		queue_statistics = capture.capture_statistics(self.connection_handler)
-		capture.output_to_file(TEST_FILE, queue_statistics)
+		capture.output_to_file(TEST_FILE, queue_statistics, 1)
 
 	def tearDown(self):
 		self.connection_handler.delete_queue(QUEUE_NAME)
