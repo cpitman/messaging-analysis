@@ -3,8 +3,11 @@ import json
 import pymqi
 from time import time, sleep
 import CMQC, CMQCFC, CMQXC
+import os
+from json import JSONEncoder
 
 ALL_PREFIX = "*"
+DEFAULT_DIR = "results"
 
 def parse_command_line_arguments():
 	parser = argparse.ArgumentParser(description="Captures the message statistics for the provided queue manager.")
@@ -16,7 +19,7 @@ def parse_command_line_arguments():
 	#Optional arguments
 	parser.add_argument("-a", "--address", default="localhost", help="The host that the queue manager is located at")
 	parser.add_argument("-c", "--channel", default="SVRCONN.1", help="The channel to use to connect to the queue manager")
-	parser.add_argument("-f", "--file", default="statistics_output", help="The path to write the captured statistics to") 
+	parser.add_argument("-o", "--output", help="The directory to write the captured statistics to. Defaults to a new temp directory.") 
 	parser.add_argument("-p", "--port", default=1434, help="The port to connect to")
 	parser.add_argument("-r", "--runs", type=int, help="The number of times to run the capture. This may not be used with the time option.")
 	parser.add_argument("-t", "--time", type=int, help="Amount of time to run the capture in seconds. This may not be used with the runs option.")
@@ -29,6 +32,10 @@ def parse_command_line_arguments():
 		raise RuntimeError, "The argument -r/--runs or -t/--time is required"
 
 	return args
+
+def default_dir():
+	os.mkdir(DEFAULT_DIR)
+	return DEFAULT_DIR
 
 def capture_statistics(connection_handler):
 	queues = connection_handler.get_all_queues()
@@ -44,10 +51,10 @@ def capture_statistics(connection_handler):
 
 	return queue_statistics
 	
-def output_to_file(filename, queue_statistics):
-		f = open(filename, "a")
-		f.write(json.dumps(Captures(queue_statistics).__dict__))
-		f.close()
+def output_to_file(output_dir, queue_statistics, i):
+	f = open(os.path.join(output_dir,"cap_%s.json" % i), "w")
+	f.write(Captures(queue_statistics).to_json())
+	f.close()
 	
 #Class to handle the connection to the Websphere MQ broker
 class ConnectionHandler:
@@ -150,31 +157,33 @@ class ConnectionHandler:
 		queue.put(message)
 		queue.close()
 
-class Message:
+class JSONSerializable(object):
+
+	def to_json(self):
+        	return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
+
+class Message(JSONSerializable):
 		
 	def __init__(self, header, body):
-		self.header = header
-		self.body = body
-		self.parse_header()
+		self.parse_header(header, body)
 
-	def parse_header(self):
-		self.size = len(self.body)
-		if self.header['Persistence'] == 1:
+	def parse_header(self, header, body):
+		self.size = len(body)
+		if header['Persistence'] == 1:
 			self.persistent = True
 		else:
 			self.persistent = False
 
+
 #Json parseable class holding the overall statistics
-class Captures:
+class Captures(JSONSerializable):
 
 	def __init__(self, queue_statistics):
 		self.time = time()
-		self.captures = []
-		for statistic in queue_statistics:
-			self.captures.append("%s" % json.dumps(statistic.__dict__))
+		self.captures = queue_statistics
 
 #Json parseable class holding the queue statistics
-class QueueStatistics:
+class QueueStatistics(JSONSerializable):
 
 	def __init__(self, queue_name, messages, statistics):
 		self.queueName = queue_name.split()[0]
@@ -182,30 +191,40 @@ class QueueStatistics:
 		self.msgIn = statistics[CMQC.MQIA_OPEN_INPUT_COUNT]
 		self.msgOut = statistics[CMQC.MQIA_OPEN_OUTPUT_COUNT]
 		
-		self.msgs = []
-		for message in messages:
-			self.msgs.append(["size:%s" % message.size, "persistent:%s" % message.persistent])
-		
+		self.msgs = messages
+
 if __name__ == '__main__':
 	args = parse_command_line_arguments()
 
 	connection_handler = ConnectionHandler(args.queue_manager, args.channel, args.address, args.port)
 	connection_handler.connect()
+	
+	output_dir = args.output	
+	if not output_dir:
+		output_dir = default_dir()
 
 	if args.runs:
+		i = 1
 		times = 0
 		while times < args.runs:
 			queue_statistics = capture_statistics(connection_handler)
-			output_to_file(filename, queue_statistics)
+			output_to_file(output_dir, queue_statistics, i)
 			times += 1
+			i+=1
 			sleep(args.interval)
 	else:
 		end_time = time() + args.time
 		while time() < end_time:
 			queue_statistics = capture_statistics(connection_handler)
-			output_to_file(filename, queue_statistics)
+			i+=1
+			output_to_file(output_dir, queue_statistics, i)
 			time.sleep(args.interval)
 
-	
+	for dirpath, dirnames, filenames in os.walk(output_dir):
+	    for filename in filenames:
+		os.chmod(os.path.join(dirpath, filename), 0o777)
+
+	print "Your results are located in directory: %s" % output_dir
+
 	
 
